@@ -78,6 +78,31 @@ class XclipBasedPaste(UtilitiesBase):
         if self.executable_location is None:
             raise Exception('no executable')
 
+        
+        try:
+            # Try to check if clipboard owner responds within timeout
+            # Uses TARGETS request which asks the owner what formats it supports
+            proc = subprocess.Popen(
+                [self.executable_location, '-selection', 'clipboard', '-o', '-t', 'TARGETS'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=os.environ
+            )
+            outs, errs = proc.communicate(timeout=0.1)
+            print("image_paste: clipboard owner responds successfully")
+        except subprocess.TimeoutExpired:
+            # Timeout indicates owner doesn't respond to TARGETS request
+            # This typically happens when Sublime Text itself is the clipboard owner
+            # and its main thread is blocked (e.g., during plugin execution)
+            proc.kill()
+            outs, errs = proc.communicate()
+            print("image_paste: clipboard owner timeout - likely Sublime Text")
+            return None
+        except Exception as e:
+            print("image_paste: error - %s" % e)
+            return None
+
+
         image = self.run_command([self.executable_location, '-se', 'c', '-t', 'image/png', '-o'])
 
         if not image:
